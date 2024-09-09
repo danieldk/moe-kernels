@@ -35,3 +35,25 @@ def marlin_gemm_moe(
     Apply GEMM to quantized MoE layers.
     """
     ...
+
+def moe_align_block_size(
+    topk_ids: torch.Tensor,
+    num_experts: int,
+    block_size: int,
+    sorted_token_ids: torch.Tensor,
+    experts_ids: torch.Tensor,
+    num_tokens_post_pad: torch.Tensor,
+) -> None:
+    """
+    Align tokens processed by experts such that they are divisible
+    by the block size.
+    """
+    ...
+
+def silu_and_mul(out: torch.Tensor, input: torch.Tensor) -> None:
+    """
+    Apply the SwiGLU activation.
+
+    `input.shape[-1]` must be `2*out.shape[-1]`.
+    """
+    ...

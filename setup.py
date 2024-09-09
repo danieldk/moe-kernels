@@ -41,11 +41,13 @@ if not SKIP_CUDA_BUILD:
     (
         ext_modules.append(
             CUDAExtension(
-                name="moe_kernels",
+                name="moe_kernels._ops",
                 sources=[
-                    "moe_kernels/ext.cpp",
-                    "moe_kernels/marlin_moe_ops.cu",
-                    "moe_kernels/topk_softmax_kernels.cu",
+                    "moe_kernels/_ops/ext.cpp",
+                    "moe_kernels/_ops/activation_kernels.cu",
+                    "moe_kernels/_ops/marlin_moe_ops.cu",
+                    "moe_kernels/_ops/moe_align_block_size_kernels.cu",
+                    "moe_kernels/_ops/topk_softmax_kernels.cu",
                 ],
                 extra_compile_args=extra_compile_args,
             )
