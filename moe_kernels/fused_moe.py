@@ -9,7 +9,6 @@ import torch
 import triton
 import triton.language as tl
 
-import moe_kernels._ops as ops
 from .platforms import get_device_name
 from .fp8 import scaled_fp8_quant
 
@@ -225,7 +224,7 @@ def moe_align_block_size(
         (max_num_m_blocks,), dtype=torch.int32, device=topk_ids.device
     )
     num_tokens_post_pad = torch.empty((1), dtype=torch.int32, device=topk_ids.device)
-    ops.moe_align_block_size(
+    torch.ops._moe_kernels_ops.moe_align_block_size(
         topk_ids, num_experts, block_size, sorted_ids, expert_ids, num_tokens_post_pad
     )
     return sorted_ids, expert_ids, num_tokens_post_pad
@@ -403,7 +402,7 @@ def fused_topk(
         M, topk, dtype=torch.int32, device=hidden_states.device
     )
 
-    ops.topk_softmax(
+    torch.ops._moe_kernels_ops.topk_softmax(
         topk_weights,
         topk_ids,
         token_expert_indicies,
@@ -413,6 +412,7 @@ def fused_topk(
 
     if renormalize:
         topk_weights = topk_weights / topk_weights.sum(dim=-1, keepdim=True)
+
     return topk_weights, topk_ids
 
 
@@ -448,7 +448,8 @@ def grouped_topk(
 
     if renormalize:
         topk_weights = topk_weights / topk_weights.sum(dim=-1, keepdim=True)
-    return topk_weights, topk_ids
+
+    return topk_weights.to(torch.float32), topk_ids.to(torch.int32)
 
 
 def get_config_dtype_str(
@@ -494,7 +495,7 @@ def fused_experts(
     E, N, _ = w1.shape
     # We execute the fused_moe kernel in chunks to circumvent this issue:
     # https://github.com/vllm-project/vllm/issues/5938
-    CHUNK_SIZE = envs.VLLM_FUSED_MOE_CHUNK_SIZE
+    CHUNK_SIZE = VLLM_FUSED_MOE_CHUNK_SIZE
     M = min(num_tokens, CHUNK_SIZE)
     config_dtype = get_config_dtype_str(
         use_fp8_w8a8=use_fp8_w8a8,
@@ -583,7 +584,7 @@ def fused_experts(
             use_int8_w8a16=use_int8_w8a16,
         )
 
-        ops.silu_and_mul(intermediate_cache2, intermediate_cache1.view(-1, N))
+        torch.ops._moe_kernels_ops.silu_and_mul(intermediate_cache2, intermediate_cache1.view(-1, N))
 
         invoke_fused_moe_kernel(
             intermediate_cache2,

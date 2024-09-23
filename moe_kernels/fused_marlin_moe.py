@@ -5,13 +5,13 @@ from typing import Any, Callable, Dict, Optional
 
 import torch
 
-import moe_kernels._ops as ops
 from .fused_moe import (
     fused_topk,
     moe_align_block_size,
     try_get_optimal_moe_config,
     grouped_topk,
 )
+from .scalar_type import scalar_types
 
 
 def single_marlin_moe(
@@ -24,6 +24,7 @@ def single_marlin_moe(
     topk: int,
     renormalize: bool,
     override_config: Optional[Dict[str, Any]] = None,
+    num_bits: int = 8,
 ) -> torch.Tensor:
     """
     This function computes the multiplication of hidden_states with expert
@@ -42,6 +43,7 @@ def single_marlin_moe(
     - renormalize (bool): If True, renormalize the top-k weights to sum to 1.
     - override_config (Optional[Dict[str, Any]]): Optional override
         for the kernel configuration.
+    - num_bits (bool): The number of bits in expert weights quantization.
 
     Returns:
     - torch.Tensor: The output tensor after applying the MoE layer.
@@ -53,10 +55,11 @@ def single_marlin_moe(
     assert hidden_states.is_contiguous(), "Hidden_states must be contiguous"
     assert w.is_contiguous(), "Expert weights must be contiguous"
     assert hidden_states.dtype == torch.float16
+    assert num_bits in [4, 8]
 
     M, K = hidden_states.shape
     E = w.shape[0]
-    N = w.shape[2] // 2
+    N = w.shape[2] // (num_bits // 2)
 
     topk_weights, topk_ids = fused_topk(hidden_states, gating_output, topk, renormalize)
 
@@ -81,7 +84,9 @@ def single_marlin_moe(
         max_workspace_size, dtype=torch.int, device="cuda", requires_grad=False
     )
 
-    intermediate_cache = ops.marlin_gemm_moe(
+    scalar_type = scalar_types.uint4b8 if num_bits == 4 else scalar_types.uint8b128
+
+    intermediate_cache = torch.ops._moe_kernels_ops.marlin_gemm_moe(
         hidden_states,
         w,
         sorted_token_ids,
@@ -91,6 +96,7 @@ def single_marlin_moe(
         g_idx,
         perm,
         workspace,
+        scalar_type,
         M,
         N,
         K,
@@ -125,6 +131,7 @@ def fused_marlin_moe(
     topk_group: Optional[int] = None,
     w1_scale: Optional[torch.Tensor] = None,
     w2_scale: Optional[torch.Tensor] = None,
+    num_bits: int = 8,
 ) -> torch.Tensor:
     """
     This function computes a Mixture of Experts (MoE) layer using two sets of
@@ -147,6 +154,7 @@ def fused_marlin_moe(
         w1.
     - w2_scale (Optional[torch.Tensor]): Optional scale to be used for
         w2.
+    - num_bits (bool): The number of bits in expert weights quantization.
 
     Returns:
     - torch.Tensor: The output tensor after applying the MoE layer.
@@ -154,12 +162,15 @@ def fused_marlin_moe(
     # Check constraints.
     assert hidden_states.shape[0] == gating_output.shape[0], "Number of tokens mismatch"
     assert hidden_states.shape[1] == w1.shape[1] * 16, "Hidden size mismatch w1"
-    assert hidden_states.shape[1] == w2.shape[2] // 2, "Hidden size mismatch w2"
+    assert hidden_states.shape[1] == w2.shape[2] // (
+        num_bits // 2
+    ), "Hidden size mismatch w2"
     assert gating_output.shape[1] == w1.shape[0], "Number of experts mismatch"
     assert hidden_states.is_contiguous(), "Hidden_states must be contiguous"
     assert w1.is_contiguous(), "Expert weights1 must be contiguous"
     assert w2.is_contiguous(), "Expert weights2 must be contiguous"
     assert hidden_states.dtype == torch.float16
+    assert num_bits in [4, 8]
 
     M, K = hidden_states.shape
     E = w1.shape[0]
@@ -212,13 +223,15 @@ def fused_marlin_moe(
         max_workspace_size, dtype=torch.int, device="cuda", requires_grad=False
     )
 
+    scalar_type = scalar_types.uint4b8 if num_bits == 4 else scalar_types.uint8b128
+
     intermediate_cache2 = torch.empty(
         (M * topk_ids.shape[1], N),
         device=hidden_states.device,
         dtype=hidden_states.dtype,
     )
 
-    intermediate_cache1 = ops.marlin_gemm_moe(
+    intermediate_cache1 = torch.ops._moe_kernels_ops.marlin_gemm_moe(
         hidden_states,
         w1,
         sorted_token_ids,
@@ -228,6 +241,7 @@ def fused_marlin_moe(
         g_idx1,
         perm1,
         workspace,
+        scalar_type,
         M,
         2 * N,
         K,
@@ -239,9 +253,9 @@ def fused_marlin_moe(
         False,
     )
 
-    ops.silu_and_mul(intermediate_cache2, intermediate_cache1.view(-1, 2 * N))
+    torch.ops._moe_kernels_ops.silu_and_mul(intermediate_cache2, intermediate_cache1.view(-1, 2 * N))
 
-    intermediate_cache3 = ops.marlin_gemm_moe(
+    intermediate_cache3 = torch.ops._moe_kernels_ops.marlin_gemm_moe(
         intermediate_cache2,
         w2,
         sorted_token_ids,
@@ -251,6 +265,7 @@ def fused_marlin_moe(
         g_idx2,
         perm2,
         workspace,
+        scalar_type,
         M,
         K,
         N,

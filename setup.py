@@ -41,7 +41,7 @@ if not SKIP_CUDA_BUILD:
     (
         ext_modules.append(
             CUDAExtension(
-                name="moe_kernels._ops",
+                name="moe_kernels._moe_kernels_ops",
                 sources=[
                     "moe_kernels/_ops/ext.cpp",
                     "moe_kernels/_ops/activation_kernels.cu",
