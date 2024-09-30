@@ -3,5 +3,5 @@ include README.md
 include pyproject.toml
 include setup.py
 exclude MANIFEST.in
-recursive-include moe_kernels *.cpp *.cu *.h *.cuh
+recursive-include moe_kernels *.cpp *.cu *.h *.hpp *.cuh
 recursive-include moe_kernels LICENSE

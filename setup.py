@@ -15,9 +15,10 @@ def append_nvcc_threads(nvcc_extra_args):
 
 
 ext_modules = []
-cc_flag = [f"-I{OPS_DIR}"]
+cc_flag = []
 
 if not SKIP_CUDA_BUILD:
+    cc_flag.append(f"-I{OPS_DIR.resolve()}")
     cc_flag.append("-gencode")
     cc_flag.append("arch=compute_80,code=sm_80")
     cc_flag.append("-gencode")
