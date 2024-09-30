@@ -1,6 +1,12 @@
 import os
+from pathlib import Path
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+
+
+ROOT = Path(__file__).parent
+SKIP_CUDA_BUILD = os.getenv("MOE_SKIP_CUDA_BUILD", "FALSE") == "TRUE"
+OPS_DIR = ROOT / "moe_kernels" / "_ops"
 
 
 def append_nvcc_threads(nvcc_extra_args):
@@ -8,10 +14,8 @@ def append_nvcc_threads(nvcc_extra_args):
     return nvcc_extra_args + ["--threads", nvcc_threads]
 
 
-SKIP_CUDA_BUILD = os.getenv("MOE_SKIP_CUDA_BUILD", "FALSE") == "TRUE"
-
 ext_modules = []
-cc_flag = []
+cc_flag = [f"-I{OPS_DIR}"]
 
 if not SKIP_CUDA_BUILD:
     cc_flag.append("-gencode")
@@ -48,6 +52,8 @@ if not SKIP_CUDA_BUILD:
                     "moe_kernels/_ops/marlin_moe_ops.cu",
                     "moe_kernels/_ops/moe_align_block_size_kernels.cu",
                     "moe_kernels/_ops/topk_softmax_kernels.cu",
+                    "moe_kernels/_ops/marlin_kernels/marlin_moe_kernel_ku4b8.cu",
+                    "moe_kernels/_ops/marlin_kernels/marlin_moe_kernel_ku8b128.cu",
                 ],
                 extra_compile_args=extra_compile_args,
             )
