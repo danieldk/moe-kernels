@@ -1,137 +1,40 @@
-"""Fused MoE utilities for GPTQ."""
+"""Fused MoE utilities for AWQ/GPTQ."""
 
-import functools
+# In this module, we do fused topk, this is split from the upstream
+# function in _fused_marlin_moe, so that we don't have to resolve
+# a bunch of merge conflicts when syncing with new upstream versions.
+
 from typing import Any, Callable, Dict, Optional
 
 import torch
 
-from .fused_moe import (
-    fused_topk,
-    moe_align_block_size,
-    try_get_optimal_moe_config,
-    grouped_topk,
-)
-from .scalar_type import scalar_types
-
-
-def single_marlin_moe(
-    hidden_states: torch.Tensor,
-    w: torch.Tensor,
-    scales: torch.Tensor,
-    gating_output: torch.Tensor,
-    g_idx: torch.Tensor,
-    perm: torch.Tensor,
-    topk: int,
-    renormalize: bool,
-    override_config: Optional[Dict[str, Any]] = None,
-    num_bits: int = 8,
-) -> torch.Tensor:
-    """
-    This function computes the multiplication of hidden_states with expert
-    weights used in Marlin MoE, using weights w and top-k gating mechanism.
-    Its purpose is testing and debugging the fused MoE kernel.
-
-    Parameters:
-    - hidden_states (torch.Tensor): The input tensor to the Marlin Mul.
-    - w (torch.Tensor): The set of expert weights.
-    - scales (torch.Tensor): The quantization scales.
-    - gating_output (torch.Tensor): The output of the gating operation
-        (before softmax).
-    - g_idx (torch.Tensor): The act_order indices.
-    - perm (torch.Tensor): The act_order input permutation.
-    - topk (int): The number of top-k experts to select.
-    - renormalize (bool): If True, renormalize the top-k weights to sum to 1.
-    - override_config (Optional[Dict[str, Any]]): Optional override
-        for the kernel configuration.
-    - num_bits (bool): The number of bits in expert weights quantization.
-
-    Returns:
-    - torch.Tensor: The output tensor after applying the MoE layer.
-    """
-    # Check constraints.
-    assert hidden_states.shape[0] == gating_output.shape[0], "Number of tokens mismatch"
-    assert hidden_states.shape[1] == w.shape[1] * 16, "Hidden size mismatch"
-    assert gating_output.shape[1] == w.shape[0], "Number of experts mismatch"
-    assert hidden_states.is_contiguous(), "Hidden_states must be contiguous"
-    assert w.is_contiguous(), "Expert weights must be contiguous"
-    assert hidden_states.dtype == torch.float16
-    assert num_bits in [4, 8]
-
-    M, K = hidden_states.shape
-    E = w.shape[0]
-    N = w.shape[2] // (num_bits // 2)
-
-    topk_weights, topk_ids = fused_topk(hidden_states, gating_output, topk, renormalize)
-
-    # This might not be an optimal config for a single MMM
-    get_config_func = functools.partial(
-        try_get_optimal_moe_config,
-        w.shape,
-        w.shape,
-        topk_ids.shape[1],
-        None,
-        override_config=override_config,
-        is_marlin=True,
-    )
-    config = get_config_func(M)
-
-    block_size_m = config["BLOCK_SIZE_M"]
-
-    sorted_token_ids, _, _ = moe_align_block_size(topk_ids, block_size_m, E)
-
-    max_workspace_size = (N // 64) * 16
-    workspace = torch.zeros(
-        max_workspace_size, dtype=torch.int, device="cuda", requires_grad=False
-    )
-
-    scalar_type = scalar_types.uint4b8 if num_bits == 4 else scalar_types.uint8b128
-
-    intermediate_cache = torch.ops._moe_kernels_ops.marlin_gemm_moe(
-        hidden_states,
-        w,
-        sorted_token_ids,
-        topk_weights,
-        topk_ids,
-        scales,
-        g_idx,
-        perm,
-        workspace,
-        scalar_type,
-        M,
-        N,
-        K,
-        True,
-        E,
-        topk,
-        block_size_m,
-        True,
-        False,
-    )
-
-    return torch.sum(intermediate_cache.view(*intermediate_cache.shape), dim=1)
+from ._fused_marlin_moe import fused_marlin_moe as fused_marlin_moe_unwrapped
+from .fused_moe import fused_topk, grouped_topk
 
 
 def fused_marlin_moe(
+    *,
     hidden_states: torch.Tensor,
     w1: torch.Tensor,
     w2: torch.Tensor,
+    w1_scale: Optional[torch.Tensor] = None,
+    w2_scale: Optional[torch.Tensor] = None,
     gating_output: torch.Tensor,
     g_idx1: torch.Tensor,
     g_idx2: torch.Tensor,
-    perm1: torch.Tensor,
-    perm2: torch.Tensor,
-    is_full_k1: bool,
-    is_full_k2: bool,
+    sort_indices1: torch.Tensor,
+    sort_indices2: torch.Tensor,
+    w1_zeros: Optional[torch.Tensor] = None,
+    w2_zeros: Optional[torch.Tensor] = None,
+    is_k_full: bool,
     topk: int,
     renormalize: bool,
+    num_bits: int = 8,
     override_config: Optional[Dict[str, Any]] = None,
     use_grouped_topk: bool = False,
     num_expert_group: Optional[int] = None,
     custom_routing_function: Optional[Callable] = None,
     topk_group: Optional[int] = None,
-    w1_scale: Optional[torch.Tensor] = None,
-    w2_scale: Optional[torch.Tensor] = None,
-    num_bits: int = 8,
 ) -> torch.Tensor:
     """
     This function computes a Mixture of Experts (MoE) layer using two sets of
@@ -141,19 +44,21 @@ def fused_marlin_moe(
     - hidden_states (torch.Tensor): The input tensor to the MoE layer.
     - w1 (torch.Tensor): The first set of expert weights.
     - w2 (torch.Tensor): The second set of expert weights.
-    - gating_output (torch.Tensor): The output of the gating operation
-        (before softmax).
-    - g_idx1 (torch.Tensor): The first set of act_order indices.
-    - g_idx2 (torch.Tensor): The second set of act_order indices.
-    - perm1 (torch.Tensor): The first act_order input permutation.
-    - perm2 (torch.Tensor): The second act_order input permutation.
-    - renormalize (bool): If True, renormalize the top-k weights to sum to 1.
-    - override_config (Optional[Dict[str, Any]]): Optional override
-        for the kernel configuration.
     - w1_scale (Optional[torch.Tensor]): Optional scale to be used for
         w1.
     - w2_scale (Optional[torch.Tensor]): Optional scale to be used for
         w2.
+    - gating_output (torch.Tensor): The output of the gating operation
+        (before softmax).
+    - g_idx1 (torch.Tensor): The first set of act_order indices.
+    - g_idx2 (torch.Tensor): The second set of act_order indices.
+    - sort_indices1 (torch.Tensor): The first act_order input permutation.
+    - sort_indices2 (torch.Tensor): The second act_order input permutation.
+    - w1_zeros (Optional[torch.Tensor]): Optional zero points to be used for w1.
+    - w2_zeros (Optional[torch.Tensor]): Optional zero points to be used for w2.
+    - renormalize (bool): If True, renormalize the top-k weights to sum to 1.
+    - override_config (Optional[Dict[str, Any]]): Optional override
+        for the kernel configuration.
     - num_bits (bool): The number of bits in expert weights quantization.
 
     Returns:
@@ -171,10 +76,6 @@ def fused_marlin_moe(
     assert w2.is_contiguous(), "Expert weights2 must be contiguous"
     assert hidden_states.dtype == torch.float16
     assert num_bits in [4, 8]
-
-    M, K = hidden_states.shape
-    E = w1.shape[0]
-    N = w2.shape[1] * 16
 
     # DeekSeekv2 uses grouped_top_k
     if use_grouped_topk:
@@ -202,79 +103,22 @@ def fused_marlin_moe(
             topk=topk,
             renormalize=renormalize,
         )
-
-    get_config_func = functools.partial(
-        try_get_optimal_moe_config,
-        w1.shape,
-        w2.shape,
-        topk_ids.shape[1],
-        None,
+    return fused_marlin_moe_unwrapped(
+        hidden_states=hidden_states,
+        w1=w1,
+        w2=w2,
+        w1_scale=w1_scale,
+        w2_scale=w2_scale,
+        gating_output=gating_output,
+        topk_weights=topk_weights,
+        topk_ids=topk_ids,
+        g_idx1=g_idx1,
+        g_idx2=g_idx2,
+        sort_indices1=sort_indices1,
+        sort_indices2=sort_indices2,
+        w1_zeros=w1_zeros,
+        w2_zeros=w2_zeros,
         override_config=override_config,
-        is_marlin=True,
+        num_bits=num_bits,
+        is_k_full=is_k_full,
     )
-    config = get_config_func(M)
-
-    block_size_m = config["BLOCK_SIZE_M"]
-
-    sorted_token_ids, _, _ = moe_align_block_size(topk_ids, block_size_m, E)
-
-    max_workspace_size = ((M + 255) // 256) * (max(2 * N, K) // 64) * 16
-    workspace = torch.zeros(
-        max_workspace_size, dtype=torch.int, device="cuda", requires_grad=False
-    )
-
-    scalar_type = scalar_types.uint4b8 if num_bits == 4 else scalar_types.uint8b128
-
-    intermediate_cache2 = torch.empty(
-        (M * topk_ids.shape[1], N),
-        device=hidden_states.device,
-        dtype=hidden_states.dtype,
-    )
-
-    intermediate_cache1 = torch.ops._moe_kernels_ops.marlin_gemm_moe(
-        hidden_states,
-        w1,
-        sorted_token_ids,
-        topk_weights,
-        topk_ids,
-        w1_scale,
-        g_idx1,
-        perm1,
-        workspace,
-        scalar_type,
-        M,
-        2 * N,
-        K,
-        is_full_k1,
-        E,
-        topk,
-        block_size_m,
-        True,
-        False,
-    )
-
-    torch.ops._moe_kernels_ops.silu_and_mul(intermediate_cache2, intermediate_cache1.view(-1, 2 * N))
-
-    intermediate_cache3 = torch.ops._moe_kernels_ops.marlin_gemm_moe(
-        intermediate_cache2,
-        w2,
-        sorted_token_ids,
-        topk_weights,
-        topk_ids,
-        w2_scale,
-        g_idx2,
-        perm2,
-        workspace,
-        scalar_type,
-        M,
-        K,
-        N,
-        is_full_k2,
-        E,
-        topk,
-        block_size_m,
-        False,
-        True,
-    )
-
-    return torch.sum(intermediate_cache3.view(*intermediate_cache3.shape), dim=1)

@@ -53,6 +53,7 @@ if not SKIP_CUDA_BUILD:
                     "moe_kernels/_ops/marlin_moe_ops.cu",
                     "moe_kernels/_ops/moe_align_block_size_kernels.cu",
                     "moe_kernels/_ops/topk_softmax_kernels.cu",
+                    "moe_kernels/_ops/marlin_kernels/marlin_moe_kernel_ku4.cu",
                     "moe_kernels/_ops/marlin_kernels/marlin_moe_kernel_ku4b8.cu",
                     "moe_kernels/_ops/marlin_kernels/marlin_moe_kernel_ku8b128.cu",
                 ],
