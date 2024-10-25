@@ -26,7 +26,14 @@
         devShells.default =
           with pkgs;
           mkShell {
-            buildInputs = [ python3.pkgs.venvShellHook ];
+            buildInputs = [
+              black
+              pyright
+              python3.pkgs.venvShellHook
+            ] ++ (with cudaPackages; [
+             cuda_nvcc
+             cuda_nvtx
+            ]);
 
             inputsFrom = [
               tgi-nix.packages.${system}.python3Packages.moe-kernels
