@@ -9,6 +9,7 @@ from .fused_moe import fused_topk, moe_align_block_size, try_get_optimal_moe_con
 from .scalar_type import scalar_types
 from moe_kernels import _custom_ops as ops
 
+
 def get_scalar_type(num_bits: int, has_zp: bool):
     if has_zp:
         assert num_bits == 4
@@ -115,7 +116,7 @@ def single_marlin_moe(
 
     scalar_type = get_scalar_type(num_bits, has_zero_point)
 
-    intermediate_cache = torch.ops._moe_kernels_ops.marlin_gemm_moe(
+    intermediate_cache = torch.ops._moe_kernels.marlin_gemm_moe(
         hidden_states,
         w,
         sorted_token_ids,
@@ -126,7 +127,7 @@ def single_marlin_moe(
         g_idx,
         sort_indices,
         workspace,
-        scalar_type,
+        scalar_type.id,
         M,
         N,
         K,
@@ -286,7 +287,7 @@ def fused_marlin_moe(
         dtype=hidden_states.dtype,
     )
 
-    intermediate_cache1 = torch.ops._moe_kernels_ops.marlin_gemm_moe(
+    intermediate_cache1 = torch.ops._moe_kernels.marlin_gemm_moe(
         hidden_states,
         w1,
         sorted_token_ids,
@@ -297,7 +298,7 @@ def fused_marlin_moe(
         g_idx1,
         sort_indices1,
         workspace,
-        scalar_type1,
+        scalar_type1.id,
         M,
         2 * N,
         K,
@@ -309,11 +310,9 @@ def fused_marlin_moe(
         False,
     )
 
-    ops.silu_and_mul(
-        intermediate_cache2, intermediate_cache1.view(-1, 2 * N)
-    )
+    ops.silu_and_mul(intermediate_cache2, intermediate_cache1.view(-1, 2 * N))
 
-    intermediate_cache3 = torch.ops._moe_kernels_ops.marlin_gemm_moe(
+    intermediate_cache3 = torch.ops._moe_kernels.marlin_gemm_moe(
         intermediate_cache2,
         w2,
         sorted_token_ids,
@@ -324,7 +323,7 @@ def fused_marlin_moe(
         g_idx2,
         sort_indices2,
         workspace,
-        scalar_type2,
+        scalar_type2.id,
         M,
         K,
         N,
