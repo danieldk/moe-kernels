@@ -209,7 +209,7 @@ if(VLLM_GPU_LANG STREQUAL "CUDA")
       SRCS "${MARLIN_MOE_SRC}"
       CUDA_ARCHS "${MARLIN_MOE_ARCHS}")
 
-    list(APPEND VLLM_SRC "${MARLIN_MOE_SRC}")
+    list(APPEND VLLM_EXT_SRC "${MARLIN_MOE_SRC}")
     message(STATUS "Building Marlin MOE kernels for archs: ${MARLIN_MOE_ARCHS}")
   else()
     message(STATUS "Not building Marlin MOE kernels as no compatible archs found"
