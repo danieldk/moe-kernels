@@ -125,7 +125,7 @@ __device__ inline uint32_t prmt(uint32_t a) {
   return res;
 }
 
-template <vllm::ScalarTypeId w_type_id>
+template <moe_kernels::ScalarTypeId w_type_id>
 __device__ inline FragB dequant(int q);
 
 // Efficiently dequantize 4bit values packed in an int32 value into a full
@@ -133,7 +133,7 @@ __device__ inline FragB dequant(int q);
 // with some small changes:
 // https://github.com/NVIDIA/FasterTransformer/blob/release/v5.3_tag/src/fastertransformer/cutlass_extensions/include/cutlass_extensions/interleaved_numeric_conversion.h#L215-L287
 template <>
-__device__ inline FragB dequant<vllm::kU4B8.id()>(int q) {
+__device__ inline FragB dequant<moe_kernels::kU4B8.id()>(int q) {
   const int LO = 0x000f000f;
   const int HI = 0x00f000f0;
   const int EX = 0x64006400;
@@ -158,7 +158,7 @@ __device__ inline FragB dequant<vllm::kU4B8.id()>(int q) {
 // Reference:
 // https://github.com/NVIDIA/FasterTransformer/blob/release/v5.3_tag/src/fastertransformer/cutlass_extensions/include/cutlass_extensions/interleaved_numeric_conversion.h#L53-L85
 template <>
-__device__ inline FragB dequant<vllm::kU8B128.id()>(int q) {
+__device__ inline FragB dequant<moe_kernels::kU8B128.id()>(int q) {
   static constexpr uint32_t mask_for_elt_01 = 0x5250;
   static constexpr uint32_t mask_for_elt_23 = 0x5351;
   static constexpr uint32_t start_byte_for_fp16 = 0x64646464;
@@ -177,7 +177,7 @@ __device__ inline FragB dequant<vllm::kU8B128.id()>(int q) {
 }
 
 template <>
-__device__ inline FragB dequant<vllm::kU4.id()>(int q) {
+__device__ inline FragB dequant<moe_kernels::kU4.id()>(int q) {
   const int LO = 0x000f000f;
   const int HI = 0x00f000f0;
   const int EX = 0x64006400;
@@ -198,7 +198,7 @@ __device__ inline FragB dequant<vllm::kU4.id()>(int q) {
 }
 
 template <>
-__device__ inline FragB dequant<vllm::kU8.id()>(int q) {
+__device__ inline FragB dequant<moe_kernels::kU8.id()>(int q) {
   static constexpr uint32_t mask_for_elt_01 = 0x5250;
   static constexpr uint32_t mask_for_elt_23 = 0x5351;
   static constexpr uint32_t start_byte_for_fp16 = 0x64646464;
@@ -285,7 +285,7 @@ __device__ inline void barrier_release(int* lock, bool reset = false) {
   }
 }
 
-template <const vllm::ScalarTypeId w_type_id,  // weight ScalarType id
+template <const moe_kernels::ScalarTypeId w_type_id,  // weight ScalarType id
           const int threads,          // number of threads in a threadblock
           const int thread_m_blocks,  // number of 16x16 blocks in the m
                                       // dimension (batchsize) of the
@@ -324,7 +324,7 @@ __device__ void MarlinMoESingle(
     bool apply_weights,    // apply weights to output
     int current_m_block    // current m block to start kernel computation from
 ) {
-  static constexpr auto w_type = vllm::ScalarType::from_id(w_type_id);
+  static constexpr auto w_type = moe_kernels::ScalarType::from_id(w_type_id);
   constexpr int pack_factor = 32 / w_type.size_bits();
 
   // For larger GEMMs we run multiple batchsize 64 versions in parallel for a
@@ -1425,7 +1425,7 @@ __device__ void MarlinMoESingle(
   }
 }
 
-template <const vllm::ScalarTypeId w_type_id,  // weight ScalarType id
+template <const moe_kernels::ScalarTypeId w_type_id,  // weight ScalarType id
           const int threads,          // number of threads in a threadblock
           const int thread_n_blocks,  // same for n dimension (output)
           const int thread_k_blocks,  // same for k dimension (reduction)
@@ -1525,7 +1525,7 @@ __global__ void MarlinMoE(
 
 #else
 
-template <const vllm::ScalarTypeId w_type_id,  // weight ScalarType id
+template <const moe_kernels::ScalarTypeId w_type_id,  // weight ScalarType id
           const int threads,          // number of threads in a threadblock
           const int thread_n_blocks,  // same for n dimension (output)
           const int thread_k_blocks,  // same for k dimension (reduction)

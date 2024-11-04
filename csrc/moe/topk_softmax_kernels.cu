@@ -19,7 +19,7 @@
 #include <torch/all.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
-#include "cuda_compat.h"
+#include "../cuda_compat.h"
 
 #ifndef USE_ROCM
     #include <cub/util_type.cuh>
@@ -32,7 +32,7 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-namespace vllm {
+namespace moe_kernels {
 namespace moe {
 
 /// Aligned array type
@@ -474,7 +474,7 @@ void topkGatingSoftmaxKernelLauncher(
 }
 
 } // namespace moe
-} // namespace vllm
+} // namespace moe_kernels
 
 void topk_softmax(
     torch::Tensor& topk_weights,                // [num_tokens, topk]
@@ -493,7 +493,7 @@ void topk_softmax(
     const at::cuda::OptionalCUDAGuard device_guard(device_of(gating_output));
     const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
     torch::Tensor softmax_workspace = torch::empty({workspace_size}, gating_output.options());
-    vllm::moe::topkGatingSoftmaxKernelLauncher(
+    moe_kernels::moe::topkGatingSoftmaxKernelLauncher(
         gating_output.data_ptr<float>(),
         topk_weights.data_ptr<float>(),
         topk_indices.data_ptr<int>(),

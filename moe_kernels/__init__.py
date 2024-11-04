@@ -14,13 +14,14 @@ if HAS_TRITON:
         grouped_topk,
     )
 
-    from .fused_marlin_moe import fused_marlin_moe
+from .fused_marlin_moe import fused_marlin_moe
 
-    __all__ += [
-        "fused_marlin_moe",
-        "fused_moe",
-        "fused_topk",
-        "fused_experts",
-        "get_config_file_name",
-        "grouped_topk",
-    ]
+__all__ += [
+    "_custom_ops",
+    "fused_marlin_moe",
+    "fused_moe",
+    "fused_topk",
+    "fused_experts",
+    "get_config_file_name",
+    "grouped_topk",
+]

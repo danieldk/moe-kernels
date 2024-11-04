@@ -7,7 +7,7 @@ import torch
 
 from .fused_moe import fused_topk, moe_align_block_size, try_get_optimal_moe_config
 from .scalar_type import scalar_types
-
+from moe_kernels import _custom_ops as ops
 
 def get_scalar_type(num_bits: int, has_zp: bool):
     if has_zp:
@@ -309,7 +309,7 @@ def fused_marlin_moe(
         False,
     )
 
-    torch.ops._moe_kernels_ops.silu_and_mul(
+    ops.silu_and_mul(
         intermediate_cache2, intermediate_cache1.view(-1, 2 * N)
     )
 
