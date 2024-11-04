@@ -11,6 +11,7 @@ import triton.language as tl
 
 from .platforms import get_device_name
 from .fp8 import scaled_fp8_quant
+from moe_kernels import _custom_ops as ops
 
 VLLM_FUSED_MOE_CHUNK_SIZE = int(os.getenv("VLLM_FUSED_MOE_CHUNK_SIZE", "32768"))
 
@@ -224,7 +225,7 @@ def moe_align_block_size(
         (max_num_m_blocks,), dtype=torch.int32, device=topk_ids.device
     )
     num_tokens_post_pad = torch.empty((1), dtype=torch.int32, device=topk_ids.device)
-    torch.ops._moe_kernels_ops.moe_align_block_size(
+    ops.moe_align_block_size(
         topk_ids, num_experts, block_size, sorted_ids, expert_ids, num_tokens_post_pad
     )
     return sorted_ids, expert_ids, num_tokens_post_pad
@@ -401,7 +402,7 @@ def fused_topk(
         M, topk, dtype=torch.int32, device=hidden_states.device
     )
 
-    torch.ops._moe_kernels_ops.topk_softmax(
+    ops.topk_softmax(
         topk_weights,
         topk_ids,
         token_expert_indicies,
@@ -424,6 +425,7 @@ def grouped_topk(
     num_expert_group: int = 0,
     topk_group: int = 0,
 ):
+
     assert hidden_states.shape[0] == gating_output.shape[0], "Number of tokens mismatch"
 
     scores = torch.softmax(gating_output, dim=-1)
@@ -582,7 +584,7 @@ def fused_experts(
             use_int8_w8a16=use_int8_w8a16,
         )
 
-        torch.ops._moe_kernels_ops.silu_and_mul(intermediate_cache2, intermediate_cache1.view(-1, N))
+        ops.silu_and_mul(intermediate_cache2, intermediate_cache1.view(-1, N))
 
         invoke_fused_moe_kernel(
             intermediate_cache2,
@@ -603,10 +605,9 @@ def fused_experts(
             use_int8_w8a16=use_int8_w8a16,
         )
 
-        torch.sum(
+        ops.moe_sum(
             intermediate_cache3.view(*intermediate_cache3.shape),
-            dim=1,
-            out=out_hidden_states[begin_chunk_idx:end_chunk_idx],
+            out_hidden_states[begin_chunk_idx:end_chunk_idx],
         )
     return out_hidden_states
 
