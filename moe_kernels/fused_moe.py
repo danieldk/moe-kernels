@@ -9,7 +9,7 @@ import torch
 import triton
 import triton.language as tl
 
-from .platforms import get_device_name
+from .platforms import current_platform
 from .fp8 import scaled_fp8_quant
 from moe_kernels import _custom_ops as ops
 
@@ -299,7 +299,7 @@ def invoke_fused_moe_kernel(
 
 
 def get_config_file_name(E: int, N: int, dtype: Optional[str]) -> str:
-    device_name = get_device_name().replace(" ", "_")
+    device_name = current_platform.get_device_name().replace(" ", "_")
     dtype_selector = "" if not dtype else f",dtype={dtype}"
     return f"E={E},N={N},device_name={device_name}{dtype_selector}.json"
 
