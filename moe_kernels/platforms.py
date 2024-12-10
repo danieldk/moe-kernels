@@ -2,10 +2,12 @@ from typing import Callable, ParamSpec, TypeVar
 import os
 from functools import lru_cache, wraps
 
-import pynvml
 import torch
 
 IS_ROCM = torch.version.hip is not None
+
+if not IS_ROCM:
+    import pynvml
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
