@@ -283,7 +283,7 @@ def invoke_fused_moe_kernel(
     if use_fp8_w8a8:
         assert B_scale is not None
         if block_shape is None:
-            A, A_scale = ops.scaled_fp8_quant(A, A_scale)
+            A, A_scale = scaled_fp8_quant(A, A_scale)
         else:
             assert len(block_shape) == 2
             block_n, block_k = block_shape[0], block_shape[1]
