@@ -761,7 +761,6 @@ def fused_moe(
             topk_group,
             scoring_func=scoring_func,
             e_score_correction_bias=e_score_correction_bias,
-            block_shape=block_shape,
         )
     elif custom_routing_function is None:
         topk_weights, topk_ids = fused_topk(
