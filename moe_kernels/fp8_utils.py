@@ -7,15 +7,14 @@ import triton.language as tl
 
 IS_ROCM = torch.version.hip is not None
 
+
 def input_to_float8(
-    x: torch.Tensor,
-    dtype: Optional[torch.dtype] = None
+    x: torch.Tensor, dtype: Optional[torch.dtype] = None
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """This function quantizes input values to float8 values "
     "with tensor-wise quantization."""
     if dtype is None:
-        dtype = (torch.float8_e4m3fnuz
-                 if IS_ROCM else torch.float8_e4m3fn)
+        dtype = torch.float8_e4m3fnuz if IS_ROCM else torch.float8_e4m3fn
     finfo = torch.finfo(dtype)
     min_val, max_val = x.aminmax()
     amax = torch.maximum(min_val.abs(), max_val.abs()).clamp(min=1e-12)
@@ -44,11 +43,16 @@ def block_quant_to_tensor_quant(
 
     x_dq_block = x_q_block.to(torch.float32)
 
-    x_dq_block_tiles = [[
-        x_dq_block[j * block_n:min((j + 1) * block_n, n),
-                   i * block_k:min((i + 1) * block_k, k), ]
-        for i in range(k_tiles)
-    ] for j in range(n_tiles)]
+    x_dq_block_tiles = [
+        [
+            x_dq_block[
+                j * block_n : min((j + 1) * block_n, n),
+                i * block_k : min((i + 1) * block_k, k),
+            ]
+            for i in range(k_tiles)
+        ]
+        for j in range(n_tiles)
+    ]
 
     for i in range(k_tiles):
         for j in range(n_tiles):
@@ -103,7 +107,7 @@ def per_token_group_quant_fp8(
     x: torch.Tensor,
     group_size: int,
     eps: float = 1e-10,
-    dtype: Optional[torch.dtype] = None
+    dtype: Optional[torch.dtype] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Function to perform per-token-group quantization on an input tensor `x`.
     It converts the tensor values into signed float8 values and returns the
@@ -119,11 +123,11 @@ def per_token_group_quant_fp8(
         scaling factor for quantization.
     """
     if dtype is None:
-        dtype = (torch.float8_e4m3fnuz
-                 if IS_ROCM else torch.float8_e4m3fn)
-    assert (x.shape[-1] % group_size == 0), (
+        dtype = torch.float8_e4m3fnuz if IS_ROCM else torch.float8_e4m3fn
+    assert x.shape[-1] % group_size == 0, (
         f"the last dimension of `x` {x.shape[-1]} must be divisible "
-        f"by `group_size` {group_size}")
+        f"by `group_size` {group_size}"
+    )
     assert x.is_contiguous(), "`x` must be contiguous"
 
     finfo = torch.finfo(dtype)
@@ -134,7 +138,7 @@ def per_token_group_quant_fp8(
     M = x.numel() // group_size
     N = group_size
     x_s = torch.empty(
-        x.shape[:-1] + (x.shape[-1] // group_size, ),
+        x.shape[:-1] + (x.shape[-1] // group_size,),
         device=x.device,
         dtype=torch.float32,
     )
@@ -143,7 +147,7 @@ def per_token_group_quant_fp8(
     # heuristics for number of warps
     num_warps = min(max(BLOCK // 256, 1), 8)
     num_stages = 1
-    _per_token_group_quant_fp8[(M, )](
+    _per_token_group_quant_fp8[(M,)](
         x,
         x_q,
         x_s,
@@ -219,12 +223,8 @@ def _w8a8_block_fp8_matmul(
 
     accumulator = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
     for k in range(0, tl.cdiv(K, BLOCK_SIZE_K)):
-        a = tl.load(a_ptrs,
-                    mask=offs_k[None, :] < K - k * BLOCK_SIZE_K,
-                    other=0.0)
-        b = tl.load(b_ptrs,
-                    mask=offs_k[:, None] < K - k * BLOCK_SIZE_K,
-                    other=0.0)
+        a = tl.load(a_ptrs, mask=offs_k[None, :] < K - k * BLOCK_SIZE_K, other=0.0)
+        b = tl.load(b_ptrs, mask=offs_k[:, None] < K - k * BLOCK_SIZE_K, other=0.0)
 
         k_start = k * BLOCK_SIZE_K
         offs_ks = k_start // group_k
@@ -285,7 +285,7 @@ def w8a8_block_fp8_matmul(
     assert triton.cdiv(N, block_n) == Bs.shape[0]
     assert triton.cdiv(K, block_k) == Bs.shape[1]
 
-    C_shape = A.shape[:-1] + (N, )
+    C_shape = A.shape[:-1] + (N,)
     C = A.new_empty(C_shape, dtype=output_dtype)
 
     # TODO:
@@ -301,8 +301,9 @@ def w8a8_block_fp8_matmul(
     BLOCK_SIZE_N = block_n
 
     def grid(META):
-        return (triton.cdiv(M, META["BLOCK_SIZE_M"]) *
-                triton.cdiv(N, META["BLOCK_SIZE_N"]), )
+        return (
+            triton.cdiv(M, META["BLOCK_SIZE_M"]) * triton.cdiv(N, META["BLOCK_SIZE_N"]),
+        )
 
     _w8a8_block_fp8_matmul[grid](
         A,

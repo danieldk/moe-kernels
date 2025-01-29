@@ -214,7 +214,7 @@ __global__ void moe_sum_kernel(
 }
 
 }  // namespace moe
-}  // namespace vllm
+}  // namespace moe_kernels
 
 void moe_align_block_size(torch::Tensor topk_ids, int64_t num_experts,
                           int64_t block_size, torch::Tensor sorted_token_ids,
