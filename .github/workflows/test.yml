@@ -111,6 +111,7 @@ jobs:
           pip install ninja packaging wheel
           export PATH=/usr/local/nvidia/bin:/usr/local/nvidia/lib64:$PATH
           export LD_LIBRARY_PATH=/usr/local/nvidia/lib64:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+          export NVCC_THREADS=4
           # Limit MAX_JOBS otherwise the github runner goes OOM
           # CUDA 11.8 can compile with 2 jobs, but CUDA 12.3 goes OOM
           MAX_JOBS=$([ "$MATRIX_CUDA_VERSION" == "123" ] && echo 1 || echo 2) python setup.py bdist_wheel --dist-dir=dist

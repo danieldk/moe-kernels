@@ -466,4 +466,5 @@ setup(
     packages=["moe_kernels"],
     ext_modules=ext_modules,
     cmdclass={"build_ext": cmake_build_ext} if len(ext_modules) > 0 else {},
+    options={"bdist_wheel": {"py_limited_api": "cp39"}},
 )
