@@ -13,6 +13,7 @@ if HAS_TRITON:
         get_config_file_name,
         grouped_topk,
     )
+    from .fp8_utils import w8a8_block_fp8_matmul, per_token_group_quant_fp8
 
 from .fused_marlin_moe import fused_marlin_moe
 
@@ -24,4 +25,6 @@ __all__ += [
     "fused_experts",
     "get_config_file_name",
     "grouped_topk",
+    "w8a8_block_fp8_matmul",
+    "per_token_group_quant_fp8",
 ]
