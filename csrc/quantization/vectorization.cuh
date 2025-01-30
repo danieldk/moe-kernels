@@ -8,7 +8,7 @@
 #include <c10/util/Float8_e4m3fnuz.h>
 #include <c10/util/Float8_e4m3fn.h>
 
-namespace marlin_kernels {
+namespace marlin_moe {
 
 // Vectorization containers
 template <typename scalar_t>
@@ -30,4 +30,4 @@ struct __align__(4) q8x4_t {
   quant_type_t w;
 };
 
-}  // namespace marlin_kernels
+}  // namespace marlin_moe

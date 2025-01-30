@@ -9,7 +9,7 @@
   #include <hipcub/hipcub.hpp>
 #endif
 
-namespace marlin_kernels {
+namespace marlin_moe {
 
 template <typename scalar_t>
 __global__ void scaled_fp8_quant_kernel(FP8_TYPE* __restrict__ out,
@@ -83,7 +83,7 @@ __global__ void dynamic_per_token_scaled_fp8_quant_kernel(
   }
 }
 
-}  // namespace marlin_kernels
+}  // namespace marlin_moe
 
 void static_scaled_fp8_quant(torch::Tensor& out,          // [..., d]
                              torch::Tensor const& input,  // [..., d]
@@ -97,7 +97,7 @@ void static_scaled_fp8_quant(torch::Tensor& out,          // [..., d]
   const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
   VLLM_DISPATCH_FLOATING_TYPES(
       input.scalar_type(), "scaled_fp8_quant_kernel", [&] {
-        marlin_kernels::scaled_fp8_quant_kernel<scalar_t><<<grid, block, 0, stream>>>(
+        marlin_moe::scaled_fp8_quant_kernel<scalar_t><<<grid, block, 0, stream>>>(
             out.data_ptr<FP8_TYPE>(), input.data_ptr<scalar_t>(),
             scale.data_ptr<float>(), num_elems);
       });
@@ -115,9 +115,9 @@ void dynamic_scaled_fp8_quant(torch::Tensor& out,          // [..., d]
   const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
   VLLM_DISPATCH_FLOATING_TYPES(
       input.scalar_type(), "scaled_fp8_quant_kernel", [&] {
-        marlin_kernels::segmented_max_reduction<scalar_t><<<grid, block, 0, stream>>>(
+        marlin_moe::segmented_max_reduction<scalar_t><<<grid, block, 0, stream>>>(
             scale.data_ptr<float>(), input.data_ptr<scalar_t>(), num_elems);
-        marlin_kernels::scaled_fp8_quant_kernel<scalar_t><<<grid, block, 0, stream>>>(
+        marlin_moe::scaled_fp8_quant_kernel<scalar_t><<<grid, block, 0, stream>>>(
             out.data_ptr<FP8_TYPE>(), input.data_ptr<scalar_t>(),
             scale.data_ptr<float>(), num_elems);
       });
@@ -139,7 +139,7 @@ void dynamic_per_token_scaled_fp8_quant(
   const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
   VLLM_DISPATCH_FLOATING_TYPES(
       input.scalar_type(), "dynamic_per_token_scaled_fp8_quant_kernel", [&] {
-        marlin_kernels::dynamic_per_token_scaled_fp8_quant_kernel<scalar_t>
+        marlin_moe::dynamic_per_token_scaled_fp8_quant_kernel<scalar_t>
             <<<grid, block, 0, stream>>>(
                 out.data_ptr<FP8_TYPE>(), scales.data_ptr<float>(),
                 input.data_ptr<scalar_t>(),

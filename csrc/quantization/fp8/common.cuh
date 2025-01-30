@@ -20,7 +20,7 @@ constexpr auto FP8_E4M3_MAX = 224.0f;
 #endif
 constexpr static auto kFp8Type = c10::CppTypeToScalarType<FP8_TYPE>::value;
 
-namespace marlin_kernels {
+namespace marlin_moe {
 
 __device__ __forceinline__ float atomicMaxFloat(float* addr, float value) {
   float old;
@@ -157,4 +157,4 @@ __device__ void scaled_fp8_conversion_vec(FP8_TYPE* __restrict__ out,
   }
 }
 
-}  // namespace marlin_kernels
+}  // namespace marlin_moe
