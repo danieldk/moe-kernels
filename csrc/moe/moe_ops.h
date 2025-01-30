@@ -27,3 +27,21 @@ void moe_align_block_size(torch::Tensor topk_ids, int64_t num_experts,
                           int64_t block_size, torch::Tensor sorted_token_ids,
                           torch::Tensor experts_ids,
                           torch::Tensor num_tokens_post_pad);
+
+void static_scaled_fp8_quant(torch::Tensor& out, torch::Tensor const& input,
+                             torch::Tensor const& scale);
+
+void dynamic_scaled_fp8_quant(torch::Tensor& out, torch::Tensor const& input,
+                              torch::Tensor& scale);
+
+void dynamic_per_token_scaled_fp8_quant(
+    torch::Tensor& out, torch::Tensor const& input, torch::Tensor& scale,
+    c10::optional<torch::Tensor> const& scale_ub);
+
+void static_scaled_int8_quant(torch::Tensor& out, torch::Tensor const& input,
+                              torch::Tensor const& scale,
+                              c10::optional<torch::Tensor> const& azp);
+
+void dynamic_scaled_int8_quant(torch::Tensor& out, torch::Tensor const& input,
+                               torch::Tensor& scales,
+                               c10::optional<torch::Tensor> const& azp);
