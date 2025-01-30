@@ -203,7 +203,8 @@ if(VLLM_GPU_LANG STREQUAL "CUDA")
         "csrc/moe/marlin_kernels/marlin_moe_kernel_ku8b128.cu"
         "csrc/moe/marlin_kernels/marlin_moe_kernel_ku4.h"
         "csrc/moe/marlin_kernels/marlin_moe_kernel_ku4.cu"
-        "csrc/moe/marlin_moe_ops.cu")
+        "csrc/moe/marlin_moe_ops.cu"
+        "csrc/quantization/fp8/common.cu")
 
     set_gencode_flags_for_srcs(
       SRCS "${MARLIN_MOE_SRC}"
