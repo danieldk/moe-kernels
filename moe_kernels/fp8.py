@@ -49,15 +49,15 @@ def scaled_fp8_quant(
     if scale is None:
         if use_per_token_if_dynamic:
             scale = torch.empty((shape[0], 1), device=input.device, dtype=torch.float32)
-            torch.ops._moe_kernels.dynamic_per_token_scaled_fp8_quant(
+            torch.ops._C.dynamic_per_token_scaled_fp8_quant(
                 output, input, scale, scale_ub
             )
         else:
             scale = torch.zeros(1, device=input.device, dtype=torch.float32)
-            torch.ops._moe_kernels.dynamic_scaled_fp8_quant(output, input, scale)
+            torch.ops._C.dynamic_scaled_fp8_quant(output, input, scale)
     else:
         # num_token_padding not implemented for this case
         assert scale.numel() == 1 or num_token_padding is None
-        torch.ops._moe_kernels.static_scaled_fp8_quant(output, input, scale)
+        torch.ops._C.static_scaled_fp8_quant(output, input, scale)
 
     return output, scale
