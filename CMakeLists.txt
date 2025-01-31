@@ -184,7 +184,6 @@ message(STATUS "FetchContent base directory: ${FETCHCONTENT_BASE_DIR}")
 
 set(VLLM_EXT_SRC
   "csrc/activation_kernels.cu"
-  "csrc/quantization/fp8/common.cu"
   "csrc/moe/torch_bindings.cpp"
   "csrc/moe/moe_align_sum_kernels.cu"
   "csrc/moe/topk_softmax_kernels.cu")
@@ -204,7 +203,8 @@ if(VLLM_GPU_LANG STREQUAL "CUDA")
         "csrc/moe/marlin_kernels/marlin_moe_kernel_ku8b128.cu"
         "csrc/moe/marlin_kernels/marlin_moe_kernel_ku4.h"
         "csrc/moe/marlin_kernels/marlin_moe_kernel_ku4.cu"
-        "csrc/moe/marlin_moe_ops.cu")
+        "csrc/moe/marlin_moe_ops.cu"
+        "csrc/quantization/fp8/common.cu")
 
     set_gencode_flags_for_srcs(
       SRCS "${MARLIN_MOE_SRC}"
